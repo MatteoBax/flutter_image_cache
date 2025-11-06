@@ -1,6 +1,6 @@
 import "dart:async";
 
-import "package:path/path.dart";
+import "package:path/path.dart" show join;
 import "package:sqflite/sqflite.dart";
 
 /// Represents a cached image entry stored in the database.
