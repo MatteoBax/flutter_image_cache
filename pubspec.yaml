@@ -1,6 +1,6 @@
 name: flutter_image_cache
 description: "A Flutter package for image caching with automatic cache management."
-version: 1.0.0
+version: 1.0.1
 homepage: https://github.com/MatteoBax/flutter_image_cache
 repository: https://github.com/MatteoBax/flutter_image_cache
 
