@@ -66,16 +66,39 @@ class CachedImageElementProvider {
       // `path` package is best practice to ensure the path is correctly
       // constructed for each platform.
       join(await getDatabasesPath(), "cachedImageDB.db"),
-      // When the database is first created, create a table to store DownloadedSongCacheElements.
+      // When the database is first created, create a table to store CachedImageElement.
       onCreate: (db, version) {
         // Run the CREATE TABLE statement on the database.
         return db.execute(
-          "CREATE TABLE $_table(id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, path TEXT, audioFilter TEXT, usageCount INTEGER, lastUsage INTEGER)",
+          "CREATE TABLE $_table(id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, path TEXT, usageCount INTEGER, lastUsage INTEGER)",
         );
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('''
+            CREATE TABLE ${_table}_new(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              url TEXT,
+              path TEXT,
+              usageCount INTEGER,
+              lastUsage INTEGER
+            );
+          ''');
+
+          await db.execute('''
+            INSERT INTO ${_table}_new (id, url, path, usageCount, lastUsage)
+            SELECT id, url, path, usageCount, lastUsage
+            FROM $_table;
+          ''');
+
+          await db.execute("DROP TABLE $_table;");
+
+          await db.execute("ALTER TABLE ${_table}_new RENAME TO $_table;");
+        }
       },
       // Set the version. This executes the onCreate function and provides a
       // path to perform database upgrades and downgrades.
-      version: 1,
+      version: 2,
     );
     return _db!;
   }
