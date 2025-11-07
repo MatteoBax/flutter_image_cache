@@ -90,20 +90,35 @@ class CacheManager {
   /// - Downloads the file.
   /// - Stores it in the cache with an initial usage count of 1.
   /// - Returns the downloaded file.
-  Future<File> _getFileFuture(String url) async {
+  /// The method automatically retries up to 10 times if a cache entry exists but the
+  /// corresponding file has been deleted or is no longer accessible.
+  ///
+  /// Throws an [Exception] if the maximum retry limit (10) is exceeded. 
+  Future<File> _getFileFuture({required String url, int retryNum = 0}) async {
     CachedImageElement? cachedImage = await CachedImageElementProvider.get(url);
     // cache hit
     if(cachedImage != null) {
-      return await _fileLock.protect(() async {
+      bool needsRetry = false;
+      File? result;
+      await _fileLock.protect(() async {
         await CachedImageElementProvider.updateLastUsage(cachedImage.id!, DateTime.now(), incrementUsageCount: true);
         File f = File(cachedImage.path);
         if(await f.exists() == false) {
           await CachedImageElementProvider.remove(cachedImage.id!);
-          throw Exception("Cached file missing, cannot load");
+          needsRetry = true;
         } else {
-          return f;
+          result = f;
         }
       });
+
+      if(needsRetry) {
+        if(retryNum == 10) {
+          throw Exception("Cannot load image: maximum retry count exceeded.");
+        }
+        return _getFileFuture(url: url, retryNum: ++retryNum);
+      } else {
+        return result!;
+      }
     } else {
       // Cache miss: download file
       File? file;
@@ -128,7 +143,7 @@ class CacheManager {
     await _lock.protect(() async {
       future = _getFileRequests[url];
       if(future == null) {
-        future = _getFileFuture(url)
+        future = _getFileFuture(url: url)
           .whenComplete(() {
             _getFileRequests.remove(url);
           });
@@ -147,7 +162,9 @@ class CacheManager {
     final cacheElements = await CachedImageElementProvider.list();
     for(final cacheElement in cacheElements) {
       File f = File(cacheElement.path);
-      totalSizeInBytes += await f.length();
+      if(await f.exists()) {
+        totalSizeInBytes += await f.length();
+      }
     }
     return CacheSize(bytes: totalSizeInBytes);
   }
